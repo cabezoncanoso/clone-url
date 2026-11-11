@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Total Copy URL</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#2a2f3a; --text:#e7e9ee; --muted:#8b93a7; --accent:#5b8cff; --ok:#3ecf8e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--text); display:grid; grid-template-columns:340px 1fr; height:100vh; }
+  aside { border-right:1px solid var(--line); background:var(--panel); padding:16px; overflow:auto; display:flex; flex-direction:column; gap:14px; }
+  h1 { font-size:16px; margin:0; }
+  input[type=url], select { width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); }
+  button, .btn { padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:#222734; color:var(--text); cursor:pointer; text-decoration:none; display:inline-block; font-size:13px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .muted { color:var(--muted); font-size:12px; }
+  label.row { flex-wrap:nowrap; align-items:flex-start; } label.row input { flex:none; margin-top:2px; }
+  .card { border:1px solid var(--line); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .card h2 { font-size:13px; margin:0; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  code { background:var(--bg); padding:2px 5px; border-radius:4px; font-size:12px; word-break:break-all; }
+  main { display:flex; flex-direction:column; min-width:0; }
+  .toolbar { padding:10px 14px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .stage { flex:1; overflow:auto; display:flex; justify-content:center; background:#0a0c10; padding:16px; }
+  iframe { border:0; background:#fff; height:100%; width:100%; border-radius:6px; transition:width .2s; }
+  .vp button.on, #pick.on { background:var(--accent); border-color:var(--accent); }
+  .thumbs { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .thumbs a img { width:100%; height:90px; object-fit:cover; object-position:top; border-radius:6px; border:1px solid var(--line); }
+  #log { white-space:pre-wrap; font-size:12px; color:var(--muted); }
+  .list button { width:100%; text-align:left; margin-bottom:4px; }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Total Copy URL</h1>
+  <div class="card">
+    <h2>1 · Capturar</h2>
+    <input id="url" type="url" placeholder="https://ejemplo.com" value="">
+    <label class="row muted"><input type="checkbox" id="keepScripts"> Mantener JavaScript (por defecto se guarda el DOM renderizado, estático)</label>
+    <label class="row muted"><input type="checkbox" id="shots" checked> Capturas PNG escritorio / tablet / móvil</label>
+    <button class="primary" id="go">Capturar URL</button>
+    <div id="log"></div>
+  </div>
+
+  <div class="card" id="result" hidden>
+    <h2>2 · Descargas</h2>
+    <div class="row">
+      <a class="btn" id="dlSite">⬇ HTML + assets (.zip)</a>
+      <a class="btn" id="dlShots">⬇ Capturas (.zip)</a>
+    </div>
+    <div class="thumbs" id="thumbs"></div>
+  </div>
+
+  <div class="card" id="sectionCard" hidden>
+    <h2>3 · Exportar sección</h2>
+    <div class="muted">Activa “Seleccionar sección”, pasa el ratón por la página y haz clic. Usa ↑ / ↓ para subir al contenedor padre o bajar al hijo.</div>
+    <div>Selector: <code id="sel">—</code></div>
+    <div class="row">
+      <button id="up">↑ Padre</button><button id="down">↓ Hijo</button>
+      <button class="primary" id="exportSec" disabled>Exportar sección</button>
+    </div>
+    <div id="secOut" class="muted"></div>
+  </div>
+
+  <div class="card">
+    <h2>Capturas anteriores</h2>
+    <div class="list" id="history"></div>
+  </div>
+</aside>
+
+<main>
+  <div class="toolbar">
+    <div class="row vp">
+      <button data-w="100%" class="on">Escritorio</button>
+      <button data-w="820px">Tablet</button>
+      <button data-w="390px">Móvil</button>
+    </div>
+    <button id="pick" disabled>🎯 Seleccionar sección</button>
+    <span class="muted" id="current"></span>
+  </div>
+  <div class="stage"><iframe id="frame" title="Vista previa"></iframe></div>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let current = null, picking = false, selected = null;
+
+function log(t) { $('#log').textContent = t; }
+
+async function loadHistory() {
+  const list = await fetch('/api/captures').then((r) => r.json());
+  $('#history').innerHTML = list.length ? '' : '<span class="muted">Aún no hay capturas</span>';
+  list.forEach((c) => {
+    const b = document.createElement('button');
+    b.textContent = `${c.title || c.url} · ${c.id.split('-').pop()}`;
+    b.onclick = () => openCapture(c.id, c);
+    $('#history').appendChild(b);
+  });
+}
+
+function openCapture(id, info = {}) {
+  current = id; selected = null;
+  $('#frame').src = `/snapshots/${id}/site/index.html`;
+  $('#current').textContent = info.finalUrl || info.url || id;
+  $('#result').hidden = false; $('#sectionCard').hidden = false; $('#pick').disabled = false;
+  $('#dlSite').href = `/api/zip/${id}`;
+  $('#dlShots').href = `/api/zip/${id}/screens`;
+  $('#thumbs').innerHTML = ['desktop', 'tablet', 'mobile'].map((n) =>
+    `<a href="/snapshots/${id}/screens/${n}.png" target="_blank"><img src="/snapshots/${id}/screens/${n}.png" alt="${n}" onerror="this.parentNode.remove()"></a>`).join('');
+  $('#sel').textContent = '—'; $('#exportSec').disabled = true; $('#secOut').textContent = '';
+}
+
+$('#go').onclick = async () => {
+  const url = $('#url').value.trim();
+  if (!url) return;
+  $('#go').disabled = true; log('Capturando… (puede tardar 20-60 s)');
+  try {
+    const r = await fetch('/api/capture', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, keepScripts: $('#keepScripts').checked, shots: $('#shots').checked }) }).then((r) => r.json());
+    if (r.error) throw new Error(r.error);
+    log(`Listo: ${r.assets} recursos guardados`);
+    openCapture(r.id, r); loadHistory();
+  } catch (e) { log('Error: ' + e.message); }
+  $('#go').disabled = false;
+};
+
+document.querySelectorAll('.vp button').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('.vp button').forEach((x) => x.classList.remove('on'));
+  b.classList.add('on'); $('#frame').style.width = b.dataset.w;
+});
+
+// ---------- Selector de secciones dentro del iframe ----------
+function cssPath(el) {
+  const doc = el.ownerDocument;
+  if (el.id && doc.querySelectorAll('#' + CSS.escape(el.id)).length === 1) return '#' + CSS.escape(el.id);
+  const parts = [];
+  for (let e = el; e && e.nodeType === 1 && e !== doc.body && e !== doc.documentElement; e = e.parentElement) {
+    if (e.id && doc.querySelectorAll('#' + CSS.escape(e.id)).length === 1) { parts.unshift('#' + CSS.escape(e.id)); break; }
+    let s = e.tagName.toLowerCase();
+    const sib = [...e.parentElement.children].filter((x) => x.tagName === e.tagName);
+    if (sib.length > 1) s += `:nth-of-type(${sib.indexOf(e) + 1})`;
+    parts.unshift(s);
+  }
+  if (!parts[0]?.startsWith('#')) parts.unshift('body');
+  return parts.join(' > ');
+}
+
+function frameDoc() { return $('#frame').contentDocument; }
+function ensureOverlay() {
+  const d = frameDoc();
+  let o = d.getElementById('__tcu_overlay');
+  if (!o) {
+    o = d.createElement('div'); o.id = '__tcu_overlay';
+    o.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;border:2px solid #5b8cff;background:rgba(91,140,255,.15);transition:all .05s;';
+    const tag = d.createElement('div'); tag.id = '__tcu_tag';
+    tag.style.cssText = 'position:absolute;top:-20px;left:-2px;background:#5b8cff;color:#fff;font:11px system-ui;padding:2px 6px;border-radius:3px;white-space:nowrap;';
+    o.appendChild(tag); d.body.appendChild(o);
+  }
+  return o;
+}
+function highlight(el) {
+  if (!el) return;
+  const o = ensureOverlay(); const r = el.getBoundingClientRect();
+  Object.assign(o.style, { display: 'block', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+  o.firstChild.textContent = `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : ''} · ${Math.round(r.width)}×${Math.round(r.height)}`;
+}
+function select(el) {
+  selected = el; highlight(el);
+  $('#sel').textContent = cssPath(el); $('#exportSec').disabled = false;
+}
+function onMove(e) { if (picking) highlight(e.target); }
+function onClick(e) { if (!picking) return; e.preventDefault(); e.stopPropagation(); select(e.target); setPicking(false); }
+function setPicking(v) {
+  picking = v; $('#pick').classList.toggle('on', v);
+  const d = frameDoc(); if (!d) return;
+  d.removeEventListener('mousemove', onMove, true); d.removeEventListener('click', onClick, true);
+  if (v) { d.addEventListener('mousemove', onMove, true); d.addEventListener('click', onClick, true); }
+}
+$('#pick').onclick = () => setPicking(!picking);
+$('#frame').onload = () => { picking = false; $('#pick').classList.remove('on'); };
+$('#up').onclick = () => { if (selected?.parentElement && selected.parentElement !== frameDoc().body) select(selected.parentElement); };
+$('#down').onclick = () => { if (selected?.firstElementChild) select(selected.firstElementChild); };
+
+$('#exportSec').onclick = async () => {
+  const selector = $('#sel').textContent;
+  $('#exportSec').disabled = true; $('#secOut').textContent = 'Extrayendo HTML, CSS por breakpoint y assets…';
+  const ov = frameDoc().getElementById('__tcu_overlay'); if (ov) ov.style.display = 'none';
+  try {
+    const r = await fetch('/api/section', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: current, selector }) }).then((r) => r.json());
+    if (r.error) throw new Error(r.error);
+    $('#secOut').innerHTML = `${r.assets} assets · ${(r.cssBytes / 1024).toFixed(1)} KB de CSS<br>Breakpoints: ${r.breakpoints.map((b) => `<code>${b}</code>`).join(' ') || 'ninguno'}<br>
+      <div class="row" style="margin-top:6px"><a class="btn" href="/api/zip/${current}/section/${r.section}">⬇ Sección (.zip): HTML, CSS, Tailwind, React, Astro, PNG</a>
+      <a class="btn" target="_blank" href="/snapshots/${current}/sections/${r.section}/index.html">Ver</a></div>`;
+  } catch (e) { $('#secOut').textContent = 'Error: ' + e.message; }
+  $('#exportSec').disabled = false;
+};
+
+loadHistory();
+</script>
+</body>
+</html>
