@@ -5,6 +5,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const { VIEWPORTS } = require('./screenshots');
 const { htmlToJsx } = require('./jsx');
+const { exportFigma } = require('./figma');
 const { collectStyles, buildTailwind, PROPS, PREFLIGHT } = require('./tailwind');
 
 // Se ejecuta dentro del navegador
@@ -192,8 +193,12 @@ async function exportSection({ snapshotUrl, snapshotDir, selector, outDir, log =
     await ctx.close();
   }
   await browser.close();
+  // Figma: capas para el plugin de figma-plugin/
+  let figmaInfo = null;
+  try { figmaInfo = await exportFigma({ snapshotUrl, snapshotDir, selector, outFile: path.join(outDir, 'figma', 'figma.json'), log }); }
+  catch (e) { log('Figma: ' + e.message); }
   await fs.writeFile(path.join(outDir, 'meta.json'), JSON.stringify({ selector, breakpoints: data.media, assets: [...used], shots }, null, 2));
-  return { breakpoints: data.media, assets: used.size, cssBytes: css.length, shots };
+  return { breakpoints: data.media, assets: used.size, cssBytes: css.length, shots, figma: figmaInfo };
 }
 
 module.exports = { exportSection };

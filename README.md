@@ -11,7 +11,18 @@ Herramienta local para copiar páginas web.
    - `assets/` con únicamente las imágenes y fuentes de esa sección
    - `react/Section.jsx` y `astro/Section.astro`
    - `tailwind/index.html` y `tailwind/Section.jsx`: la sección reescrita con clases de Tailwind (mobile-first, `md:` 768px y `lg:` 1280px) a partir de los estilos calculados en cada ancho
+   - `figma/figma.json`: la sección como capas para Figma (escritorio, tablet y móvil)
    - PNG de la sección en escritorio, tablet y móvil
+
+## Exportar a Figma
+La herramienta genera un `figma.json` (de una sección o de la página completa con «Página para Figma») y un plugin lo importa como capas editables: frames, textos con su fuente, imágenes, SVG, bordes, radios y sombras, en tres frames (escritorio 1440, tablet 768 y móvil 390).
+
+Instalar el plugin (una sola vez, en Figma de escritorio):
+1. Descarga «Plugin de Figma» desde la interfaz (o usa la carpeta `figma-plugin/`) y descomprímelo.
+2. En Figma: menú **Plugins → Development → Import plugin from manifest…** y elige `figma-plugin/manifest.json`.
+3. Ejecuta **Plugins → Development → Total Copy URL – Importar**, elige el `figma.json` y pulsa Importar.
+
+Si una fuente no está instalada en tu equipo, el plugin usa Inter. Las posiciones son absolutas (sin auto layout).
 
 ## Uso
 ```bash

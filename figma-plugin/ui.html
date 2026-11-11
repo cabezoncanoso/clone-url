@@ -1,0 +1,48 @@
+<style>
+  body { font: 12px/1.4 Inter, system-ui, sans-serif; margin: 0; padding: 14px; color: #222; }
+  h1 { font-size: 13px; margin: 0 0 6px; }
+  p { color: #666; margin: 0 0 10px; }
+  label.drop { display: block; border: 1.5px dashed #bbb; border-radius: 8px; padding: 18px; text-align: center; cursor: pointer; }
+  label.drop:hover { border-color: #0d99ff; }
+  input[type=file] { display: none; }
+  .opts { margin: 10px 0; display: flex; flex-direction: column; gap: 4px; }
+  button { width: 100%; padding: 8px; border: 0; border-radius: 6px; background: #0d99ff; color: #fff; font-weight: 600; cursor: pointer; }
+  button:disabled { background: #bbb; cursor: default; }
+  #status { margin-top: 8px; color: #555; white-space: pre-wrap; }
+</style>
+<h1>Importar captura</h1>
+<p>Elige el <b>figma.json</b> exportado desde Total Copy URL.</p>
+<label class="drop" id="drop">Seleccionar figma.json<input type="file" id="file" accept=".json,application/json"></label>
+<div class="opts" id="opts"></div>
+<button id="go" disabled>Importar</button>
+<div id="status"></div>
+<script>
+let data = null;
+const $ = (id) => document.getElementById(id);
+$('file').onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    data = JSON.parse(await f.text());
+    if (data.format !== 'total-copy-url/figma') throw new Error('No es un figma.json de Total Copy URL');
+    $('drop').firstChild.textContent = f.name;
+    $('opts').innerHTML = data.frames.map((fr, i) => `<label><input type="checkbox" data-i="${i}" checked> ${fr.name} (${fr.viewport}px)</label>`).join('');
+    $('go').disabled = false; $('status').textContent = `${data.frames.length} tamaños · ${Object.keys(data.images).length} imágenes`;
+  } catch (err) { $('status').textContent = 'Error: ' + err.message; }
+};
+$('go').onclick = () => {
+  const pick = [...document.querySelectorAll('#opts input:checked')].map((x) => +x.dataset.i);
+  const images = {};
+  for (const [url, im] of Object.entries(data.images)) {
+    const bin = atob(im.data); const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    images[url] = bytes;
+  }
+  $('go').disabled = true; $('status').textContent = 'Importando…';
+  parent.postMessage({ pluginMessage: { type: 'import', frames: data.frames.filter((_, i) => pick.includes(i)), images, selector: data.selector } }, '*');
+};
+onmessage = (e) => {
+  const m = e.data.pluginMessage; if (!m) return;
+  if (m.type === 'progress' || m.type === 'done' || m.type === 'error') $('status').textContent = m.text;
+  if (m.type !== 'progress') $('go').disabled = false;
+};
+</script>
