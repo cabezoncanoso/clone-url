@@ -2,10 +2,11 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs/promises');
-const archiver = require('archiver');
+const { ZipArchive } = require('archiver');
 const { snapshot } = require('./src/snapshot');
 const { screenshots } = require('./src/screenshots');
 const { exportSection } = require('./src/section');
+const { exportFigma } = require('./src/figma');
 
 const PORT = process.env.PORT || 4321;
 const DATA = path.join(__dirname, 'data');
@@ -58,9 +59,22 @@ app.post('/api/section', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Página completa para Figma (escritorio, tablet y móvil)
+app.get('/api/figma/:id', async (req, res) => {
+  try {
+    const id = safeId(req.params.id);
+    const outFile = path.join(DATA, id, 'figma.json');
+    await exportFigma({
+      snapshotUrl: `http://localhost:${PORT}/snapshots/${id}/site/index.html`,
+      snapshotDir: path.join(DATA, id, 'site'), selector: 'body', outFile,
+    });
+    res.download(outFile, `${id}-figma.json`);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 function sendZip(res, dir, name) {
   res.attachment(name);
-  const zip = archiver('zip', { zlib: { level: 9 } });
+  const zip = new ZipArchive({ zlib: { level: 9 } });
   zip.on('error', (e) => res.status(500).end(e.message));
   zip.pipe(res);
   zip.directory(dir, false);
@@ -69,5 +83,7 @@ function sendZip(res, dir, name) {
 app.get('/api/zip/:id', (req, res) => sendZip(res, path.join(DATA, safeId(req.params.id), 'site'), `${req.params.id}.zip`));
 app.get('/api/zip/:id/screens', (req, res) => sendZip(res, path.join(DATA, safeId(req.params.id), 'screens'), `${req.params.id}-capturas.zip`));
 app.get('/api/zip/:id/section/:n', (req, res) => sendZip(res, path.join(DATA, safeId(req.params.id), 'sections', safeId(req.params.n)), `${req.params.id}-seccion-${req.params.n}.zip`));
+
+app.get('/api/figma-plugin', (_req, res) => sendZip(res, path.join(__dirname, 'figma-plugin'), 'total-copy-url-figma-plugin.zip'));
 
 app.listen(PORT, () => console.log(`Total Copy URL en http://localhost:${PORT}`));

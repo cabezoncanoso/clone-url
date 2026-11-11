@@ -48,6 +48,8 @@
     <div class="row">
       <a class="btn" id="dlSite">⬇ HTML + assets (.zip)</a>
       <a class="btn" id="dlShots">⬇ Capturas (.zip)</a>
+      <a class="btn" id="dlFigma" title="Genera capas para escritorio, tablet y móvil (tarda unos segundos)">⬇ Página para Figma (.json)</a>
+      <a class="btn" href="/api/figma-plugin">⬇ Plugin de Figma</a>
     </div>
     <div class="thumbs" id="thumbs"></div>
   </div>
@@ -106,6 +108,7 @@ function openCapture(id, info = {}) {
   $('#result').hidden = false; $('#sectionCard').hidden = false; $('#pick').disabled = false;
   $('#dlSite').href = `/api/zip/${id}`;
   $('#dlShots').href = `/api/zip/${id}/screens`;
+  $('#dlFigma').href = `/api/figma/${id}`;
   $('#thumbs').innerHTML = ['desktop', 'tablet', 'mobile'].map((n) =>
     `<a href="/snapshots/${id}/screens/${n}.png" target="_blank"><img src="/snapshots/${id}/screens/${n}.png" alt="${n}" onerror="this.parentNode.remove()"></a>`).join('');
   $('#sel').textContent = '—'; $('#exportSec').disabled = true; $('#secOut').textContent = '';
@@ -191,7 +194,7 @@ $('#exportSec').onclick = async () => {
       body: JSON.stringify({ id: current, selector }) }).then((r) => r.json());
     if (r.error) throw new Error(r.error);
     $('#secOut').innerHTML = `${r.assets} assets · ${(r.cssBytes / 1024).toFixed(1)} KB de CSS<br>Breakpoints: ${r.breakpoints.map((b) => `<code>${b}</code>`).join(' ') || 'ninguno'}<br>
-      <div class="row" style="margin-top:6px"><a class="btn" href="/api/zip/${current}/section/${r.section}">⬇ Sección (.zip): HTML, CSS, Tailwind, React, Astro, PNG</a>
+      <div class="row" style="margin-top:6px"><a class="btn" href="/api/zip/${current}/section/${r.section}">⬇ Sección (.zip): HTML, CSS, Tailwind, React, Astro, Figma, PNG</a>
       <a class="btn" target="_blank" href="/snapshots/${current}/sections/${r.section}/index.html">Ver</a></div>`;
   } catch (e) { $('#secOut').textContent = 'Error: ' + e.message; }
   $('#exportSec').disabled = false;
